@@ -60,8 +60,8 @@ python app_mysql.py
 
 ### 访问网站
 打开浏览器访问: http://localhost:5000
-![Uploading image.png…]()
-<img width="1348" height="931" alt="image" src="https://github.com/user-attachments/assets/50c4f589-ccdf-443b-b380-260efbce2729" />
+
+<img width="1298" height="992" alt="image" src="https://github.com/user-attachments/assets/d4711694-1d49-4e5e-94bc-6be7b39f305c" />
 
 
 ## 📁 项目结构
