@@ -62,6 +62,9 @@ python app_mysql.py
 打开浏览器访问: http://localhost:5000
 
 <img width="1298" height="992" alt="image" src="https://github.com/user-attachments/assets/d4711694-1d49-4e5e-94bc-6be7b39f305c" />
+<img width="1331" height="1099" alt="image" src="https://github.com/user-attachments/assets/47d97e1b-0595-4fde-836b-c1ae1055702d" />
+<img width="1629" height="1056" alt="image" src="https://github.com/user-attachments/assets/58551a23-ed4e-48f1-96f5-74718c042a0b" />
+<img width="1252" height="1004" alt="image" src="https://github.com/user-attachments/assets/1aa38775-2970-4f94-84b9-715976a75f43" />
 
 
 ## 📁 项目结构
