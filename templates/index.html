@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+
+{% block title %}首页 - 小说阅读网站{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <div class="jumbotron bg-light p-5 rounded mb-4">
+            <h1 class="display-4">欢迎来到小说阅读网</h1>
+            <p class="lead">发现精彩的小说世界，享受阅读的乐趣</p>
+            <a class="btn btn-primary btn-lg" href="{{ url_for('novel_list') }}" role="button">开始阅读</a>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <h3>📖 最新小说</h3>
+        <div class="row">
+            {% for novel in latest_novels %}
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-title">{{ novel.title }}</h6>
+                        <p class="card-text text-muted">{{ novel.author }}</p>
+                        <p class="card-text small">
+                            {% if novel.avg_rating > 0 %}
+                                <span class="text-warning">
+                                    {% for i in range(1, 6) %}
+                                        {% if i <= novel.avg_rating %}★{% else %}☆{% endif %}
+                                    {% endfor %}
+                                </span>
+                                {{ "%.1f"|format(novel.avg_rating) }}
+                            {% else %}
+                                <span class="text-muted">暂无评分</span>
+                            {% endif %}
+                        </p>
+                        <a href="{{ url_for('read_full_novel', novel_id=novel.id) }}" class="btn btn-sm btn-outline-primary">阅读</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <h3>🔥 热门小说</h3>
+        <div class="row">
+            {% for novel in popular_novels %}
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h6 class="card-title">{{ novel.title }}</h6>
+                        <p class="card-text text-muted">{{ novel.author }}</p>
+                        <p class="card-text small">
+                            {% if novel.avg_rating > 0 %}
+                                <span class="text-warning">
+                                    {% for i in range(1, 6) %}
+                                        {% if i <= novel.avg_rating %}★{% else %}☆{% endif %}
+                                    {% endfor %}
+                                </span>
+                                {{ "%.1f"|format(novel.avg_rating) }}
+                            {% else %}
+                                <span class="text-muted">暂无评分</span>
+                            {% endif %}
+                        </p>
+                        <a href="{{ url_for('read_full_novel', novel_id=novel.id) }}" class="btn btn-sm btn-outline-primary">阅读</a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <h3>📚 小说分类</h3>
+        <div class="row">
+            {% for category in categories %}
+            <div class="col-md-3 col-sm-6 mb-3">
+                <a href="{{ url_for('novel_list', category=category.id) }}" class="text-decoration-none">
+                    <div class="card text-center h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ category.name }}</h5>
+                            <p class="card-text text-muted">{{ category.description }}</p>
+                        </div>
+                    </div>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

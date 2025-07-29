@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+
+{% block title %}{{ novel.title }} - 小说阅读网站{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-body">
+                <h2>{{ novel.title }}</h2>
+                <p class="text-muted">作者：{{ novel.author }}</p>
+                
+                <div class="mb-3">
+                    <span class="badge bg-secondary">{{ novel.category.name }}</span>
+                    <span class="badge bg-info">{{ novel.status == 'completed' and '已完结' or '连载中' }}</span>
+                    <span class="badge bg-success">{{ novel.total_chapters }}章</span>
+                    <span class="badge bg-warning">{{ "%.1f万字"|format(novel.word_count/10000) if novel.word_count > 10000 else novel.word_count|string + "字" }}</span>
+                </div>
+                
+                <div class="mb-3">
+                    {% if novel.avg_rating > 0 %}
+                        <div class="d-flex align-items-center">
+                            <span class="text-warning fs-4">
+                                {% for i in range(1, 6) %}
+                                    {% if i <= novel.avg_rating %}★{% else %}☆{% endif %}
+                                {% endfor %}
+                            </span>
+                            <span class="ms-2">{{ "%.1f"|format(novel.avg_rating) }} ({{ novel.review_count }}人评价)</span>
+                        </div>
+                    {% else %}
+                        <span class="text-muted">暂无评分</span>
+                    {% endif %}
+                </div>
+                
+                {% if novel.description %}
+                <div class="mb-4">
+                    <h5>内容简介</h5>
+                    <p>{{ novel.description }}</p>
+                </div>
+                {% endif %}
+                
+                <div class="mb-4">
+                    <a href="{{ url_for('read_full_novel', novel_id=novel.id) }}" class="btn btn-primary">开始阅读</a>
+                    {% if session.user_id %}
+                        {% if is_favorited %}
+                            <button class="btn btn-warning" onclick="toggleFavorite({{ novel.id }}, false)">取消收藏</button>
+                        {% else %}
+                            <button class="btn btn-outline-warning" onclick="toggleFavorite({{ novel.id }}, true)">加入收藏</button>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- 章节列表 -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h5>章节列表 ({{ chapters|length }}章)</h5>
+            </div>
+            <div class="card-body">
+                {% if chapters %}
+                    <div class="row">
+                        {% for chapter in chapters %}
+                        <div class="col-md-6 col-lg-4 mb-2">
+                            <a href="{{ url_for('read_chapter', novel_id=novel.id, chapter_number=chapter.chapter_number) }}" 
+                               class="btn btn-outline-primary btn-sm w-100 text-start">
+                                第{{ chapter.chapter_number }}章 {{ chapter.title }}
+                            </a>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted">暂无章节</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <!-- 评价区域 -->
+        <div class="card">
+            <div class="card-header">
+                <h5>读者评价</h5>
+            </div>
+            <div class="card-body">
+                {% if session.user_id %}
+                    <form id="reviewForm" class="mb-4">
+                        <div class="mb-3">
+                            <label for="rating" class="form-label">评分</label>
+                            <select class="form-select" id="rating" name="rating" required>
+                                <option value="">请选择评分</option>
+                                <option value="5">5星 - 非常好</option>
+                                <option value="4">4星 - 很好</option>
+                                <option value="3">3星 - 一般</option>
+                                <option value="2">2星 - 较差</option>
+                                <option value="1">1星 - 很差</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="comment" class="form-label">评论</label>
+                            <textarea class="form-control" id="comment" name="comment" rows="3" placeholder="分享你的阅读感受..."></textarea>
+                        </div>
+                        <button type="submit" class="btn btn-primary">提交评价</button>
+                    </form>
+                    <hr>
+                {% endif %}
+                
+                {% if reviews %}
+                    {% for review in reviews %}
+                    <div class="mb-3 p-3 border rounded">
+                        <div class="d-flex justify-content-between">
+                            <strong>{{ review.user.username }}</strong>
+                            <span class="text-warning">
+                                {% for i in range(1, 6) %}
+                                    {% if i <= review.rating %}★{% else %}☆{% endif %}
+                                {% endfor %}
+                            </span>
+                        </div>
+                        {% if review.comment %}
+                        <p class="mt-2 mb-1">{{ review.comment }}</p>
+                        {% endif %}
+                        <small class="text-muted">{{ review.created_at.strftime('%Y-%m-%d') }}</small>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">暂无评价</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleFavorite(novelId, add) {
+    fetch('/api/favorite', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            novel_id: novelId,
+            action: add ? 'add' : 'remove'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || '操作失败');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('网络错误');
+    });
+}
+
+document.getElementById('reviewForm')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const data = {
+        novel_id: {{ novel.id }},
+        rating: parseInt(formData.get('rating')),
+        comment: formData.get('comment')
+    };
+    
+    fetch('/api/review', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert(data.message || '提交失败');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('网络错误');
+    });
+});
+</script>
+{% endblock %}

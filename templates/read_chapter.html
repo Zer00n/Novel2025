@@ -1,0 +1,1154 @@
+{% extends "base.html" %}
+
+{% block title %}{{ chapter.title }} - {{ novel.title }}{% endblock %}
+
+{% block content %}
+<style>
+/* 阅读进度相关样式 */
+.reading-progress-indicator {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 0%;
+    height: 6px;
+    background: linear-gradient(90deg, #007bff, #28a745, #ffc107);
+    z-index: 9999;
+    transition: width 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* 书签按钮动画 */
+.bookmark-animate {
+    animation: bookmarkPulse 0.3s ease-in-out;
+}
+
+@keyframes bookmarkPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* 恢复位置提示样式 */
+.restore-position-hint {
+    background: linear-gradient(135deg, #17a2b8, #20c997);
+    border: none;
+    border-radius: 10px;
+    color: white;
+    box-shadow: 0 4px 15px rgba(23, 162, 184, 0.3);
+    animation: slideInRight 0.5s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* 阅读主题样式 */
+.theme-white {
+    background-color: #ffffff;
+    color: #333333;
+}
+
+.theme-sepia {
+    background-color: #f5f5dc;
+    color: #5d4e37;
+}
+
+.theme-dark {
+    background-color: #2b2b2b;
+    color: #e0e0e0;
+}
+
+/* 美化侧边栏按钮 */
+.reading-controls .btn {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    font-weight: 500;
+}
+
+.reading-controls .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* 章节内容美化 */
+.chapter-text {
+    line-height: 1.8;
+    font-size: 16px;
+    text-align: justify;
+    word-spacing: 1px;
+    letter-spacing: 0.5px;
+}
+
+/* 进度指示器 */
+.reading-time-indicator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(0,0,0,0.7);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    z-index: 1000;
+}
+
+/* 保存按钮动画 */
+.save-progress-animate {
+    animation: saveProgressPulse 0.3s ease-in-out;
+}
+
+@keyframes saveProgressPulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* 进度卡片样式 */
+.progress-card .card-header {
+    background: linear-gradient(135deg, #28a745, #20c997);
+    color: white;
+    border-bottom: none;
+}
+
+.progress-card .progress {
+    border-radius: 10px;
+    background-color: #e9ecef;
+}
+
+.progress-card .progress-bar {
+    border-radius: 10px;
+    transition: width 0.3s ease;
+}
+
+/* 章节徽章样式 */
+.chapter-badge {
+    font-size: 0.9em;
+    padding: 0.5em 1em;
+    border-radius: 25px;
+    background: linear-gradient(135deg, #007bff, #0056b3);
+    box-shadow: 0 2px 8px rgba(0,123,255,0.3);
+}
+</style>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-2 col-md-3 col-sm-12">
+            <!-- 阅读设置侧边栏 -->
+            <div class="card position-sticky" style="top: 20px;">
+                <div class="card-header">
+                    <h6 class="mb-0">阅读设置</h6>
+                </div>
+                <div class="card-body reading-controls">
+                    <div class="mb-3">
+                        <label for="fontSize" class="form-label">字体大小</label>
+                        <input type="range" class="form-range" id="fontSize" min="12" max="24" value="16">
+                        <div class="d-flex justify-content-between">
+                            <small>小</small>
+                            <small>大</small>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">背景色</label>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary bg-white" onclick="setTheme('white')">&nbsp;</button>
+                            <button class="btn btn-sm btn-outline-secondary" style="background-color: #f5f5dc;" onclick="setTheme('sepia')">&nbsp;</button>
+                            <button class="btn btn-sm btn-outline-secondary bg-dark" onclick="setTheme('dark')">&nbsp;</button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="lineHeight" class="form-label">行间距</label>
+                        <input type="range" class="form-range" id="lineHeight" min="1.2" max="2.0" step="0.1" value="1.6">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-outline-primary w-100" onclick="toggleFullscreen()">全屏阅读</button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-outline-danger w-100" id="favoriteBtn" onclick="toggleFavorite({{ novel.id }})">
+                            <i class="bi bi-heart" id="favoriteIcon"></i>
+                            <span id="favoriteText">收藏小说</span>
+                        </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-outline-warning w-100" id="bookmarkBtn" onclick="saveBookmark()">
+                            <i class="bi bi-bookmark"></i>
+                            <span>保存书签</span>
+                        </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-outline-success w-100" id="lastPositionBtn" onclick="goToLastPosition()">
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <span>继续阅读</span>
+                        </button>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-success w-100" id="saveProgressBtn" onclick="manualSaveProgress()">
+                            <i class="bi bi-floppy" id="saveProgressIcon"></i>
+                            <span id="saveProgressText">保存进度</span>
+                        </button>
+                    </div>
+                    
+                    <!-- 阅读进度显示卡片 -->
+                    <div class="card mb-3 progress-card">
+                        <div class="card-header py-2">
+                            <h6 class="mb-0 text-center">
+                                <i class="bi bi-graph-up"></i> 阅读进度
+                            </h6>
+                        </div>
+                        <div class="card-body p-2">
+                            <div class="mb-2">
+                                <small class="text-muted">当前章节</small>
+                                <div class="text-center">
+                                    <span class="badge chapter-badge">第{{ chapter.chapter_number }}章</span>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <small class="text-muted">阅读进度</small>
+                                <div class="progress mb-1" style="height: 10px;">
+                                    <div class="progress-bar bg-gradient" id="chapterProgressBar" 
+                                         role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                    </div>
+                                </div>
+                                <div class="text-center">
+                                    <small class="text-primary fw-bold" id="progressPercentage">0%</small>
+                                </div>
+                            </div>
+                            <div class="mb-1">
+                                <small class="text-muted">总进度</small>
+                                <div class="text-center">
+                                    <small id="totalProgress" class="fw-bold">{{ chapter.chapter_number }}/{{ novel.total_chapters }}章</small>
+                                </div>
+                            </div>
+                            <div class="text-center">
+                                <small class="text-success" id="lastSaveTime">自动保存中...</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <button class="btn btn-sm btn-outline-info w-100" onclick="showCategorySelector()" id="changeCategoryBtn">
+                            <i class="bi bi-tags"></i> 更改分类
+                        </button>
+                    </div>
+                    
+                    <!-- 调试信息 -->
+                    <div class="mb-3">
+                        <small class="text-muted">
+                            调试: 如果看不到上面的收藏按钮，请按F12检查浏览器控制台
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-8 col-md-6 col-sm-12">
+            <!-- 章节导航 -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">{{ novel.title }}</h5>
+                            <h6 class="text-muted">{{ chapter.title }}</h6>
+                        </div>
+                        <div class="btn-group">
+                            {% if prev_chapter %}
+                            <a href="{{ url_for('read_chapter', novel_id=novel.id, chapter_number=prev_chapter.chapter_number) }}" 
+                               class="btn btn-outline-primary">上一章</a>
+                            {% endif %}
+                            <a href="{{ url_for('novel_detail', novel_id=novel.id) }}" class="btn btn-outline-secondary">目录</a>
+                            {% if next_chapter %}
+                            <a href="{{ url_for('read_chapter', novel_id=novel.id, chapter_number=next_chapter.chapter_number) }}" 
+                               class="btn btn-outline-primary">下一章</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 章节内容 -->
+            <div class="card">
+                <div class="card-body" id="chapterContent">
+                    <h4 class="text-center mb-4">{{ chapter.title }}</h4>
+                    <div class="chapter-text">
+                        {{ chapter.content|replace('\n', '<br>')|safe }}
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 章节底部导航 -->
+            <div class="card mt-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        {% if prev_chapter %}
+                        <a href="{{ url_for('read_chapter', novel_id=novel.id, chapter_number=prev_chapter.chapter_number) }}" 
+                           class="btn btn-primary">上一章</a>
+                        {% else %}
+                        <span></span>
+                        {% endif %}
+                        
+                        <a href="{{ url_for('novel_detail', novel_id=novel.id) }}" class="btn btn-secondary">返回目录</a>
+                        
+                        {% if next_chapter %}
+                        <a href="{{ url_for('read_chapter', novel_id=novel.id, chapter_number=next_chapter.chapter_number) }}" 
+                           class="btn btn-primary">下一章</a>
+                        {% else %}
+                        <span></span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-lg-2 col-md-3 col-sm-12">
+            <!-- 章节列表 -->
+            <div class="card position-sticky" style="top: 20px; max-height: 80vh; overflow-y: auto;">
+                <div class="card-header">
+                    <h6 class="mb-0">章节列表</h6>
+                </div>
+                <div class="card-body p-2">
+                    {% for ch in novel.chapters %}
+                    <a href="{{ url_for('read_chapter', novel_id=novel.id, chapter_number=ch.chapter_number) }}" 
+                       class="btn btn-sm w-100 mb-1 text-start {% if ch.chapter_number == chapter.chapter_number %}btn-primary{% else %}btn-outline-secondary{% endif %}">
+                        第{{ ch.chapter_number }}章
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 阅读进度指示器 -->
+<div id="readingProgressBar" class="reading-progress-indicator" style="width: 0%;"></div>
+
+<!-- 阅读时间指示器 -->
+<div id="readingTimeIndicator" class="reading-time-indicator" style="display: none;">
+    <i class="bi bi-clock"></i> <span id="readingTimeText">00:00</span>
+</div>
+
+<!-- 分类变更模态框 -->
+<div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-tags me-2"></i>
+                    更改小说分类
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <p class="text-muted">
+                        <i class="bi bi-info-circle"></i>
+                        当前分类：<strong id="currentCategoryName">{{ novel.category.name }}</strong>
+                    </p>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="categorySelect" class="form-label">选择新分类：</label>
+                    <select class="form-select" id="categorySelect">
+                        <option value="">请选择分类...</option>
+                        <!-- 分类选项将通过JavaScript动态加载 -->
+                    </select>
+                </div>
+                
+                <div class="alert alert-warning" role="alert">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>注意：</strong>更改分类将会影响小说在分类列表中的显示位置。
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> 取消
+                </button>
+                <button type="button" class="btn btn-info" onclick="updateNovelCategory()" id="confirmChangeBtn" disabled>
+                    <i class="bi bi-check-circle"></i> 确认更改
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 分类变更相关变量
+let availableCategories = [];
+let currentCategoryId = {{ novel.category_id }};
+
+// 阅读设置
+function setTheme(theme) {
+    const content = document.getElementById('chapterContent');
+    content.className = 'card-body theme-' + theme;
+    localStorage.setItem('readingTheme', theme);
+}
+
+function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen();
+    } else {
+        document.exitFullscreen();
+    }
+}
+
+// 字体大小调整
+document.getElementById('fontSize').addEventListener('input', function() {
+    const size = this.value + 'px';
+    document.querySelector('.chapter-text').style.fontSize = size;
+    localStorage.setItem('fontSize', this.value);
+});
+
+// 行间距调整
+document.getElementById('lineHeight').addEventListener('input', function() {
+    document.querySelector('.chapter-text').style.lineHeight = this.value;
+    localStorage.setItem('lineHeight', this.value);
+});
+
+// 键盘快捷键
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowLeft' && e.ctrlKey) {
+        // Ctrl + 左箭头：上一章
+        const prevLink = document.querySelector('a[href*="chapter_number={{ prev_chapter.chapter_number if prev_chapter }}"]');
+        if (prevLink) prevLink.click();
+    } else if (e.key === 'ArrowRight' && e.ctrlKey) {
+        // Ctrl + 右箭头：下一章
+        const nextLink = document.querySelector('a[href*="chapter_number={{ next_chapter.chapter_number if next_chapter }}"]');
+        if (nextLink) nextLink.click();
+    }
+});
+
+// 收藏功能
+function toggleFavorite(novelId) {
+    // 获取当前滚动位置
+    const scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+    
+    fetch('/api/toggle_favorite', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            novel_id: novelId,
+            chapter_number: {{ chapter.chapter_number }},
+            scroll_position: scrollPosition
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateFavoriteButton(data.is_favorited);
+            showToast(data.message, data.is_favorited ? 'success' : 'info');
+        } else {
+            showToast(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('操作失败，请重试', 'error');
+    });
+}
+
+// 保存书签功能
+function saveBookmark() {
+    const scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+    
+    // 添加按钮动画
+    animateBookmarkButton();
+    
+    fetch('/api/save_bookmark', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            novel_id: {{ novel.id }},
+            chapter_number: {{ chapter.chapter_number }},
+            scroll_position: scrollPosition
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            // 更新收藏按钮状态
+            updateFavoriteButton(data.is_favorited);
+        } else {
+            showToast(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('保存书签失败，请重试', 'error');
+    });
+}
+
+// 阅读进度自动保存
+let readingStartTime = Date.now();
+let lastSaveTime = Date.now();
+let autoSaveInterval;
+let lastSaveDisplayTime = Date.now();
+
+function saveReadingProgress() {
+    const scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+    const readingTime = Math.floor((Date.now() - lastSaveTime) / 1000);
+    lastSaveTime = Date.now();
+    
+    const novelId = {{ novel.id }};
+    const chapterNumber = {{ chapter.chapter_number }};
+    
+    console.log('保存阅读进度: 小说' + novelId + ', 章节' + chapterNumber + ', 位置' + scrollPosition + ', 时长' + readingTime + '秒');
+    
+    fetch('/api/save_reading_progress', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            novel_id: novelId,
+            chapter_number: chapterNumber,
+            scroll_position: scrollPosition,
+            reading_time: readingTime
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('✅ 阅读进度保存成功');
+            updateLastSaveTime();
+            updateSaveButton('success');
+        } else {
+            console.error('❌ 阅读进度保存失败:', data.message);
+            updateSaveButton('error');
+        }
+    })
+    .catch(error => {
+        console.error('❌ 保存阅读进度网络错误:', error);
+    });
+}
+
+// 获取并跳转到上次阅读位置
+function goToLastPosition() {
+    const novelId = {{ novel.id }};
+    
+    fetch('/api/get_reading_progress/' + novelId)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.progress) {
+            const progress = data.progress;
+            const currentChapter = {{ chapter.chapter_number }};
+            
+            if (progress.chapter_number === currentChapter) {
+                // 在当前章节，直接跳转到位置
+                window.scrollTo({
+                    top: progress.scroll_position,
+                    behavior: 'smooth'
+                });
+                showToast('已跳转到上次阅读位置', 'success');
+            } else {
+                // 跳转到对应章节
+                const targetUrl = '/read/' + novelId + '/' + progress.chapter_number;
+                showToast('即将跳转到第' + progress.chapter_number + '章...', 'info');
+                setTimeout(() => {
+                    window.location.href = targetUrl;
+                }, 1000);
+            }
+        } else {
+            showToast('没有找到阅读记录', 'info');
+        }
+    })
+    .catch(error => {
+        console.error('获取阅读进度失败:', error);
+        showToast('获取阅读进度失败', 'error');
+    });
+}
+
+// 页面加载时恢复阅读位置
+function restoreReadingPosition() {
+    console.log('开始检查阅读位置恢复...');
+    
+    const novelId = {{ novel.id }};
+    
+    fetch('/api/get_reading_progress/' + novelId)
+    .then(response => response.json())
+    .then(data => {
+        console.log('阅读进度数据:', data);
+        
+        if (data.success && data.progress) {
+            const progress = data.progress;
+            const currentChapter = {{ chapter.chapter_number }};
+            
+            console.log('找到阅读进度: 章节' + progress.chapter_number + ', 位置' + progress.scroll_position);
+            
+            // 降低触发条件，只要有滚动位置就显示提示
+            if (progress.chapter_number === currentChapter && progress.scroll_position > 50) {
+                // 显示恢复位置提示
+                const restoreBtn = document.createElement('div');
+                restoreBtn.className = 'alert restore-position-hint position-fixed';
+                restoreBtn.style.cssText = 'top: 80px; right: 20px; z-index: 9999; cursor: pointer; max-width: 300px;';
+                restoreBtn.innerHTML = 
+                    '<i class="bi bi-bookmark-check me-2"></i> ' + 
+                    '检测到上次阅读位置<br>' +
+                    '<strong>点击恢复 (位置: ' + progress.scroll_position + 'px)</strong>';
+                
+                restoreBtn.onclick = () => {
+                    console.log('跳转到位置: ' + progress.scroll_position);
+                    window.scrollTo({
+                        top: progress.scroll_position,
+                        behavior: 'smooth'
+                    });
+                    restoreBtn.remove();
+                    showToast('已恢复到上次阅读位置', 'success');
+                };
+                document.body.appendChild(restoreBtn);
+                
+                console.log('恢复位置提示已显示');
+                
+                // 12秒后自动消失
+                setTimeout(() => {
+                    if (restoreBtn.parentNode) {
+                        restoreBtn.remove();
+                        console.log('恢复位置提示已自动消失');
+                    }
+                }, 12000);
+            } else if (progress.chapter_number !== currentChapter) {
+                // 不同章节，提示跳转
+                console.log('不同章节，当前: ' + currentChapter + ', 记录: ' + progress.chapter_number);
+                showToast('上次阅读到第' + progress.chapter_number + '章，可点击"继续阅读"跳转', 'info');
+            } else {
+                console.log('滚动位置太小，不显示恢复提示');
+            }
+        } else {
+            console.log('没有找到阅读进度记录');
+        }
+    })
+    .catch(error => {
+        console.error('获取阅读进度失败:', error);
+    });
+}
+
+function updateFavoriteButton(isFavorited) {
+    const btn = document.getElementById('favoriteBtn');
+    const icon = document.getElementById('favoriteIcon');
+    const text = document.getElementById('favoriteText');
+    
+    if (isFavorited) {
+        btn.className = 'btn btn-sm btn-danger w-100';
+        icon.className = 'bi bi-heart-fill';
+        text.textContent = '已收藏';
+    } else {
+        btn.className = 'btn btn-sm btn-outline-danger w-100';
+        icon.className = 'bi bi-heart';
+        text.textContent = '收藏小说';
+    }
+}
+
+function showToast(message, type) {
+    // 创建简单的toast提示
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} position-fixed`;
+    toast.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 250px;';
+    toast.textContent = message;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
+}
+
+// 检查收藏状态
+function checkFavoriteStatus(novelId) {
+    fetch(`/api/check_favorite/${novelId}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateFavoriteButton(data.is_favorited);
+        }
+    })
+    .catch(error => {
+        console.error('Error checking favorite status:', error);
+    });
+}
+
+// 恢复阅读设置
+window.addEventListener('load', function() {
+    console.log('页面加载完成，开始初始化...');
+    
+    const savedTheme = localStorage.getItem('readingTheme');
+    if (savedTheme) setTheme(savedTheme);
+    
+    const savedFontSize = localStorage.getItem('fontSize');
+    if (savedFontSize) {
+        document.getElementById('fontSize').value = savedFontSize;
+        document.querySelector('.chapter-text').style.fontSize = savedFontSize + 'px';
+    }
+    
+    const savedLineHeight = localStorage.getItem('lineHeight');
+    if (savedLineHeight) {
+        document.getElementById('lineHeight').value = savedLineHeight;
+        document.querySelector('.chapter-text').style.lineHeight = savedLineHeight;
+    }
+    
+    // 立即显示进度条和阅读时间
+    const progressBar = document.getElementById('readingProgressBar');
+    const timeIndicator = document.getElementById('readingTimeIndicator');
+    
+    if (progressBar) {
+        progressBar.style.display = 'block';
+        console.log('进度条已显示');
+    } else {
+        console.error('找不到进度条元素！');
+    }
+    
+    if (timeIndicator) {
+        timeIndicator.style.display = 'block';
+        console.log('时间指示器已显示');
+    } else {
+        console.error('找不到时间指示器元素！');
+    }
+    
+    // 检查收藏状态
+    checkFavoriteStatus({{ novel.id }});
+    
+    // 初始化阅读进度功能
+    initReadingProgress();
+    
+    // 立即更新一次进度条
+    setTimeout(() => {
+        updateReadingProgress();
+    }, 100);
+    
+    // 每秒更新自动保存状态显示
+    setInterval(updateAutoSaveStatus, 1000);
+    
+    // 调试：检查关键元素
+    const favoriteBtn = document.getElementById('favoriteBtn');
+    const bookmarkBtn = document.getElementById('bookmarkBtn');
+    const lastPositionBtn = document.getElementById('lastPositionBtn');
+    
+    console.log('关键元素检查:');
+    console.log('收藏按钮:', favoriteBtn ? '存在' : '不存在');
+    console.log('书签按钮:', bookmarkBtn ? '存在' : '不存在');
+    console.log('继续阅读按钮:', lastPositionBtn ? '存在' : '不存在');
+    console.log('进度条:', progressBar ? '存在' : '不存在');
+    console.log('时间指示器:', timeIndicator ? '存在' : '不存在');
+});
+
+// 初始化阅读进度功能
+function initReadingProgress() {
+    console.log('初始化阅读进度功能...');
+    
+    // 恢复阅读位置提示 - 延迟2秒
+    setTimeout(() => {
+        restoreReadingPosition();
+    }, 2000);
+    
+    // 设置自动保存进度 - 改为每5秒保存一次
+    autoSaveInterval = setInterval(() => {
+        console.log('定时保存阅读进度...');
+        saveReadingProgress();
+    }, 5000);
+    
+    // 监听滚动事件，实时保存进度（防抖） - 改为1秒后保存
+    let scrollTimer;
+    window.addEventListener('scroll', function() {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+            console.log('滚动停止，保存进度...');
+            saveReadingProgress();
+        }, 1000);
+        
+        // 更新进度条
+        updateReadingProgress();
+    });
+    
+    // 显示阅读时间
+    showReadingTime();
+    
+    // 页面离开时保存进度
+    window.addEventListener('beforeunload', function() {
+        console.log('页面即将离开，保存最终进度...');
+        if (autoSaveInterval) {
+            clearInterval(autoSaveInterval);
+        }
+        // 同步保存最后的进度
+        const scrollPosition = window.pageYOffset || document.documentElement.scrollTop;
+        const readingTime = Math.floor((Date.now() - lastSaveTime) / 1000);
+        
+        // 使用fetch同步发送，因为sendBeacon可能不支持JSON
+        try {
+            const novelId = {{ novel.id }};
+            const chapterNumber = {{ chapter.chapter_number }};
+            
+            fetch('/api/save_reading_progress', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    novel_id: novelId,
+                    chapter_number: chapterNumber,
+                    scroll_position: scrollPosition,
+                    reading_time: readingTime
+                }),
+                keepalive: true
+            });
+        } catch (e) {
+            console.error('最终保存失败:', e);
+        }
+    });
+    
+    console.log('阅读进度功能初始化完成');
+}
+
+// 更新阅读进度条
+function updateReadingProgress() {
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+    const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+    const progress = Math.min((scrollTop / scrollHeight) * 100, 100);
+    
+    // 更新顶部进度条
+    const progressBar = document.getElementById('readingProgressBar');
+    if (progressBar) {
+        progressBar.style.width = progress + '%';
+    }
+    
+    // 更新侧边栏章节进度条
+    const chapterProgressBar = document.getElementById('chapterProgressBar');
+    const progressPercentage = document.getElementById('progressPercentage');
+    
+    if (chapterProgressBar && progressPercentage) {
+        chapterProgressBar.style.width = progress + '%';
+        chapterProgressBar.setAttribute('aria-valuenow', progress);
+        progressPercentage.textContent = Math.round(progress) + '%';
+    }
+}
+
+// 手动保存进度
+function manualSaveProgress() {
+    console.log('用户手动保存进度...');
+    
+    // 添加按钮动画
+    const btn = document.getElementById('saveProgressBtn');
+    if (btn) {
+        btn.classList.add('save-progress-animate');
+        setTimeout(() => {
+            btn.classList.remove('save-progress-animate');
+        }, 300);
+    }
+    
+    // 更新按钮状态
+    updateSaveButton('saving');
+    
+    // 立即保存进度
+    saveReadingProgress();
+    
+    // 显示成功提示
+    showToast('阅读进度已保存到第{{ chapter.chapter_number }}章', 'success');
+}
+
+// 更新保存按钮状态
+function updateSaveButton(status) {
+    const btn = document.getElementById('saveProgressBtn');
+    const icon = document.getElementById('saveProgressIcon');
+    const text = document.getElementById('saveProgressText');
+    
+    if (!btn || !icon || !text) return;
+    
+    switch(status) {
+        case 'saving':
+            btn.className = 'btn btn-sm btn-warning w-100';
+            btn.disabled = true;
+            icon.className = 'bi bi-hourglass-split';
+            text.textContent = '保存中...';
+            break;
+            
+        case 'success':
+            btn.className = 'btn btn-sm btn-success w-100';
+            btn.disabled = false;
+            icon.className = 'bi bi-check-circle';
+            text.textContent = '已保存';
+            
+            // 2秒后恢复正常状态
+            setTimeout(() => {
+                btn.className = 'btn btn-sm btn-success w-100';
+                icon.className = 'bi bi-floppy';
+                text.textContent = '保存进度';
+            }, 2000);
+            break;
+            
+        case 'error':
+            btn.className = 'btn btn-sm btn-danger w-100';
+            btn.disabled = false;
+            icon.className = 'bi bi-exclamation-triangle';
+            text.textContent = '保存失败';
+            
+            // 2秒后恢复正常状态
+            setTimeout(() => {
+                btn.className = 'btn btn-sm btn-success w-100';
+                icon.className = 'bi bi-floppy';
+                text.textContent = '保存进度';
+            }, 2000);
+            break;
+            
+        default:
+            btn.className = 'btn btn-sm btn-success w-100';
+            btn.disabled = false;
+            icon.className = 'bi bi-floppy';
+            text.textContent = '保存进度';
+    }
+}
+
+// 更新最后保存时间显示
+function updateLastSaveTime() {
+    const lastSaveElement = document.getElementById('lastSaveTime');
+    if (lastSaveElement) {
+        const now = new Date();
+        const timeStr = now.toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+        });
+        lastSaveElement.textContent = `已保存 ${timeStr}`;
+        lastSaveDisplayTime = Date.now();
+    }
+}
+
+// 更新自动保存状态显示
+function updateAutoSaveStatus() {
+    const lastSaveElement = document.getElementById('lastSaveTime');
+    if (!lastSaveElement) return;
+    
+    const timeSinceLastSave = Date.now() - lastSaveDisplayTime;
+    
+    if (timeSinceLastSave < 5000) {
+        // 5秒内显示具体保存时间
+        return;
+    } else if (timeSinceLastSave < 30000) {
+        lastSaveElement.textContent = '自动保存中...';
+    } else {
+        lastSaveElement.textContent = '长时间未保存';
+        lastSaveElement.style.color = '#dc3545'; // 红色警告
+    }
+}
+
+// 显示阅读时间
+function showReadingTime() {
+    const timeIndicator = document.getElementById('readingTimeIndicator');
+    const timeText = document.getElementById('readingTimeText');
+    
+    if (timeIndicator && timeText) {
+        timeIndicator.style.display = 'block';
+        
+        setInterval(() => {
+            const elapsed = Math.floor((Date.now() - readingStartTime) / 1000);
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = elapsed % 60;
+            timeText.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }, 1000);
+    }
+}
+
+// 美化书签按钮动画
+function animateBookmarkButton() {
+    const bookmarkBtn = document.getElementById('bookmarkBtn');
+    if (bookmarkBtn) {
+        bookmarkBtn.classList.add('bookmark-animate');
+        setTimeout(() => {
+            bookmarkBtn.classList.remove('bookmark-animate');
+        }, 300);
+    }
+}
+
+// === 分类变更功能 ===
+
+// 显示分类选择器
+function showCategorySelector() {
+    // 加载可用分类
+    loadAvailableCategories().then(() => {
+        // 显示模态框
+        const modal = new bootstrap.Modal(document.getElementById('categoryModal'));
+        modal.show();
+    }).catch(error => {
+        showToast('加载分类列表失败', 'error');
+        console.error('Error loading categories:', error);
+    });
+}
+
+// 加载可用分类列表
+async function loadAvailableCategories() {
+    try {
+        const response = await fetch('/api/get_categories');
+        const data = await response.json();
+        
+        if (data.success) {
+            availableCategories = data.categories;
+            populateCategorySelect();
+        } else {
+            throw new Error(data.message || '加载分类失败');
+        }
+    } catch (error) {
+        throw error;
+    }
+}
+
+// 填充分类选择下拉框
+function populateCategorySelect() {
+    const select = document.getElementById('categorySelect');
+    const confirmBtn = document.getElementById('confirmChangeBtn');
+    
+    // 清空现有选项
+    select.innerHTML = '<option value="">请选择分类...</option>';
+    
+    // 添加分类选项
+    availableCategories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        
+        // 如果是当前分类，标记并禁用
+        if (category.id === currentCategoryId) {
+            option.textContent += ' (当前分类)';
+            option.disabled = true;
+            option.style.color = '#6c757d';
+        }
+        
+        select.appendChild(option);
+    });
+    
+    // 监听选择变化
+    select.addEventListener('change', function() {
+        const selectedValue = this.value;
+        const isValidSelection = selectedValue && selectedValue != currentCategoryId;
+        
+        confirmBtn.disabled = !isValidSelection;
+        
+        if (isValidSelection) {
+            confirmBtn.classList.remove('btn-secondary');
+            confirmBtn.classList.add('btn-info');
+        } else {
+            confirmBtn.classList.remove('btn-info');
+            confirmBtn.classList.add('btn-secondary');
+        }
+    });
+}
+
+// 更新小说分类
+function updateNovelCategory() {
+    const select = document.getElementById('categorySelect');
+    const newCategoryId = parseInt(select.value);
+    const confirmBtn = document.getElementById('confirmChangeBtn');
+    
+    if (!newCategoryId || newCategoryId === currentCategoryId) {
+        showToast('请选择有效的分类', 'error');
+        return;
+    }
+    
+    // 获取新分类名称
+    const newCategory = availableCategories.find(cat => cat.id === newCategoryId);
+    if (!newCategory) {
+        showToast('选择的分类不存在', 'error');
+        return;
+    }
+    
+    // 确认对话框
+    if (!confirm(`确定要将小说分类更改为 "${newCategory.name}" 吗？`)) {
+        return;
+    }
+    
+    // 禁用按钮防止重复提交
+    const originalBtnText = confirmBtn.innerHTML;
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML = '<i class="bi bi-hourglass me-2"></i>更改中...';
+    
+    // 发送更新请求
+    fetch('/api/update_novel_category', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            novel_id: {{ novel.id }},
+            category_id: newCategoryId
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // 更新页面显示
+            updateCategoryDisplay(data.new_category);
+            currentCategoryId = newCategoryId;
+            
+            // 关闭模态框
+            const modal = bootstrap.Modal.getInstance(document.getElementById('categoryModal'));
+            modal.hide();
+            
+            showToast(data.message, 'success');
+        } else {
+            showToast(data.message || '更新失败', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showToast('网络错误，请重试', 'error');
+    })
+    .finally(() => {
+        // 恢复按钮状态
+        confirmBtn.disabled = false;
+        confirmBtn.innerHTML = originalBtnText;
+    });
+}
+
+// 更新页面中的分类显示
+function updateCategoryDisplay(newCategoryName) {
+    // 更新小说信息中的分类显示
+    const novelTitleElement = document.querySelector('.text-muted');
+    if (novelTitleElement && novelTitleElement.textContent.includes('分类：')) {
+        // 这里需要根据实际HTML结构调整
+        console.log('Found category element, updating display');
+    }
+    
+    // 更新模态框中的当前分类显示
+    const currentCategoryElement = document.getElementById('currentCategoryName');
+    if (currentCategoryElement) {
+        currentCategoryElement.textContent = newCategoryName;
+    }
+}
+</script>
+
+<style>
+.chapter-text {
+    font-size: 16px;
+    line-height: 1.6;
+    text-align: justify;
+    text-indent: 2em;
+}
+
+.theme-white {
+    background-color: white;
+    color: black;
+}
+
+.theme-sepia {
+    background-color: #f5f5dc;
+    color: #5c4b37;
+}
+
+.theme-dark {
+    background-color: #2d3748;
+    color: #e2e8f0;
+}
+</style>
+{% endblock %}
